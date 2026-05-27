@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "livekit-quickstart"
+version = "0.1.0"
+description = "Progressive LiveKit voice agent tutorial"
+requires-python = ">=3.10"
+
+dependencies = [
+    "livekit-agents[silero,turn-detector]",
+    "python-dotenv",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-dir]
+"" = "src"
+
+[tool.pyrefly]
+python-interpreter-path = ".venv/bin/python3"
