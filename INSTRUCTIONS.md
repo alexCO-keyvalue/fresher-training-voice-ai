@@ -1,55 +1,37 @@
-# Stage 4: Pipeline Nodes
+# Stage 5: Function Tools
 
 ## Goal
 
-Understand how data flows through the STT -> LLM -> TTS pipeline and learn to intercept and modify it at each stage by overriding node methods.
+Give the agent the ability to take actions -- not just talk. Tools let the LLM call Python functions to look up data, create records, or trigger side effects.
 
 ## Background
 
-The voice pipeline processes data in three stages:
+Without tools, the agent can only respond based on what's in its instructions and the conversation history. With `@function_tool`, you can give the LLM access to Python functions. The LLM decides when to call them based on the tool's **docstring** -- this is how it learns what the tool does and when to use it.
 
-```
-Microphone audio
-      |
-  [stt_node]  -- converts audio to text (yields SpeechEvent objects)
-      |
-  [llm_node]  -- sends text to the LLM, gets response stream (yields ChatChunk objects)
-      |
-      +---------------------------+
-      |                           |
-  [tts_node]              [transcription_node]
-  converts response        post-processes the LLM
-  text to audio            output for display
-      |
-Speaker audio
-```
-
-Each of these nodes is a method on the `Agent` class. By default, they use `Agent.default.*_node()` which calls the STT/LLM/TTS you configured in `AgentSession`. You can override any of them to add custom logic -- filtering, transformation, logging, etc.
-
-**Important distinction**: `stt_node` processes the *user's speech* (audio -> SpeechEvent), while `transcription_node` post-processes the *agent's LLM output* for display. If you want to clean up what the user said before it reaches the LLM, override `stt_node`, not `transcription_node`.
-
-The key pattern is **async generators**: each node receives an async iterable and must return/yield the processed stream.
+The flow when a tool is called:
+1. User says something like "Can you check ticket T-1001?"
+2. The LLM reads the tool's docstring and decides to call `lookup_ticket(ticket_id="T-1001")`
+3. Your Python function runs and returns a result string
+4. The LLM incorporates the result into its response
+5. The response is spoken to the user via TTS
 
 ## Your Tasks
 
-Open `src/agent.py` and implement the three TODO methods inside `TechSupportAgent`:
+Open `src/agent.py` and implement the two tools:
 
-1. **TODO 1: `stt_node`** -- Strip filler words ("um", "uh", "like") from the user's speech before it reaches the LLM. Override `stt_node`, call `Agent.default.stt_node()`, and modify the `text` field on `SpeechEvent.alternatives` using `FILLER_PATTERN`.
-2. **TODO 2: `tts_node`** -- Expand abbreviations ("API" -> "A P I") before TTS speaks them.
-3. **TODO 3: `llm_node`** -- Enforce a hard character limit on LLM responses. Stream `ChatChunk` objects from `Agent.default.llm_node()`, track character count via `chunk.delta.content`, and stop the stream when `MAX_RESPONSE_CHARS` is reached.
-
-Refer to the docs linked in each TODO comment for implementation guidance.
+1. **TODO 1:** Implement `lookup_ticket` -- look up a ticket by ID from `TICKET_DATABASE` and return a formatted string. The decorator, signature, and hints are provided.
+2. **TODO 2:** Build `create_ticket` from scratch -- no skeleton provided. You need to figure out the decorator, method signature, docstring, and return value yourself.
 
 ## Docs
 
-- [Pipeline nodes & hooks](https://docs.livekit.io/agents/build/nodes/)
+- [Function tools](https://docs.livekit.io/agents/logic/tools/definition/)
 
 ## Break It
 
-- Remove the `tts_node` override and ask the agent "What is an API?" -- listen to how the TTS pronounces "API" without expansion.
-- Add a mapping in `TTS_EXPANSIONS` that maps "Acme" to "ACME CORPORATION" and notice the difference.
-- Set `MAX_RESPONSE_CHARS = 20` and watch the agent get cut off mid-sentence.
+- Make `lookup_ticket` return a Python dict instead of a string. What does the agent say?
+- Now make it return `None`. What happens?
+- Remove the docstring from `lookup_ticket` entirely. Ask the agent to look up a ticket. Does it still work?
 
 ## Extend It
 
-- Add a word count limit to `llm_node` instead of a character limit -- break on word boundaries so the response doesn't cut off mid-word.
+- Add an `update_ticket_status` tool that can change a ticket's status. Give it validation -- it should only accept "open", "in_progress", and "resolved" as valid statuses, and return an error message for anything else.
