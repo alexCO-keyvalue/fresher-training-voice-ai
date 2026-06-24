@@ -1,44 +1,59 @@
-# Stage 6: Context, Events, and Session Lifecycle
+# Stage 7: Multi-Agent Handoffs
 
 ## Goal
 
-Learn how to inject runtime data into the agent, react to session events, and use the ChatContext hook to enrich conversations with external data.
+Build a multi-agent system where specialist agents hand off to each other using `session.update_agent()`, passing context between them.
 
 ## Background
 
-So far, the agent's knowledge is limited to its static instructions and tool calls. In production, you often need to:
+A single agent can't do everything well. In production, you split responsibilities across specialist agents:
 
-- **Inject user context** -- greet the user by name, know their account type, personalize the experience
-- **React to events** -- log transcripts, track state changes, handle errors gracefully
-- **Enrich the chat context** -- automatically provide relevant data to the LLM based on what the user says
+```
+User calls in
+      |
+  [TriageAgent]  -- "What do you need help with?"
+      |
+   /     \
+  v       v
+[TechnicalAgent]   [BillingAgent]
+  |                   |
+  v                   v
+"Let me help with     "Let me look up
+ that bug..."          your invoice..."
+```
 
-LiveKit provides hooks for all of these:
-- `fetch_user_context()` + f-string instructions for personalization
-- `on_user_turn_completed()` for injecting data into the ChatContext before the LLM responds
-- `session.on("event_name")` for reacting to session events
-- `ctx.add_shutdown_callback()` for cleanup when the session ends
+Each agent has its own instructions, tools, and personality. When the user's needs change, agents hand off using `session.update_agent()`. The key question is: **what happens to conversation history during a handoff?**
 
-## Your Tasks
+## What's Already Built
 
-Open `src/agent.py` and complete the four TODOs:
+Open `src/agent.py` and study the code:
 
-1. **TODO 1:** Implement `fetch_user_context()` and inject the data into agent instructions via f-strings
-2. **TODO 2:** Override `on_user_turn_completed` to auto-inject ticket data when the user mentions a ticket ID
-3. **TODO 3:** Register session event handlers for `user_input_transcribed`, `agent_state_changed`, and `error`
-4. **TODO 4:** Add a shutdown callback to log a session summary
+- **`TriageAgent`** -- fully implemented. Routes users to technical or billing support. Has `transfer_to_technical` and `transfer_to_billing` tools.
+- **`TechnicalAgent`** -- fully implemented. Has `lookup_ticket`, `create_ticket`, and `transfer_to_triage` tools.
+- **`BillingAgent`** -- just a stub (`pass`). This is what you need to build.
+
+The entrypoint already starts with `TriageAgent`. When the user says they have a billing question, the triage agent will try to transfer to `BillingAgent` -- but it won't work until you implement it.
+
+## Your Task
+
+Build `BillingAgent` from scratch by studying `TriageAgent` and `TechnicalAgent` as examples:
+
+1. Accept `user_context` in `__init__` and use it in the instructions
+2. Implement `on_enter()` to greet the user as the billing specialist
+3. Implement a `lookup_invoice` tool using `INVOICE_DATABASE`
+4. Implement a `transfer_to_triage` tool to hand back without losing context
+
+Pay attention to how context flows: `self.user_context` is passed between agents so each one can personalize its instructions.
 
 ## Docs
 
-- [Context variables recipe](https://docs.livekit.io/reference/recipes/context_variables/)
-- [Chat context](https://docs.livekit.io/agents/logic/chat-context/)
-- [Events and error handling](https://docs.livekit.io/reference/agents/events-and-error-handling/)
-- [Job lifecycle](https://docs.livekit.io/agents/server/lifecycle/)
+- [Agents & handoffs](https://docs.livekit.io/agents/logic/turns/agents-and-handoffs/)
 
 ## Break It
 
-- Hardcode a wrong name in the instructions (e.g. "The user's name is Bob"). Talk to the agent -- does it call you Bob?
-- Remove `on_user_turn_completed` and mention ticket T-1001 in conversation. Does the agent know about the ticket without using the lookup tool?
+- Remove the `transfer_to_triage` tool from your `BillingAgent`. Ask the billing agent a technical question. What does it do?
+- Remove the routing instructions from `TriageAgent` but keep the transfer tools. Does it still route correctly? (Tools have docstrings -- does the LLM figure it out?)
 
 ## Extend It
 
-- Use `ctx.wait_for_participant()` to get the real participant identity and attributes from the LiveKit room instead of the fake `fetch_user_context()`. Pass `participant.attributes.get('language', 'en')` to configure the STT language dynamically.
+- After the billing issue is resolved, make `BillingAgent` transfer to `TechnicalAgent` directly (skipping triage) if the user mentions a technical problem. How do you preserve context across a three-agent chain?
