@@ -1,39 +1,55 @@
-# Stage 3: Turn Detection and Interruptions
+# Stage 4: Pipeline Nodes
 
 ## Goal
 
-Understand how VAD (Voice Activity Detection), turn detection, and interruption handling affect the flow of a voice conversation using the unified `TurnHandlingOptions` API.
+Understand how data flows through the STT -> LLM -> TTS pipeline and learn to intercept and modify it at each stage by overriding node methods.
 
 ## Background
 
-By default, the agent uses VAD to detect when you start and stop speaking. VAD works by detecting **silence** -- when you stop making sound for long enough, it assumes you're done.
+The voice pipeline processes data in three stages:
 
-But humans pause mid-sentence all the time ("I was trying to... you know... open the dashboard"). VAD alone would cut you off during those pauses.
+```
+Microphone audio
+      |
+  [stt_node]  -- converts audio to text (yields SpeechEvent objects)
+      |
+  [llm_node]  -- sends text to the LLM, gets response stream (yields ChatChunk objects)
+      |
+      +---------------------------+
+      |                           |
+  [tts_node]              [transcription_node]
+  converts response        post-processes the LLM
+  text to audio            output for display
+      |
+Speaker audio
+```
 
-A **turn detector** (`inference.TurnDetector()`) is a built-in audio-based model that analyzes what you've said and decides whether you've actually finished your thought. It's much smarter than silence detection alone.
+Each of these nodes is a method on the `Agent` class. By default, they use `Agent.default.*_node()` which calls the STT/LLM/TTS you configured in `AgentSession`. You can override any of them to add custom logic -- filtering, transformation, logging, etc.
 
-**Preemptive generation** is a latency optimization: the LLM starts generating a response while the turn detector is still deciding. If you keep talking, the partial response is discarded. If you're done, the response is already partly generated. This is enabled by default in LiveKit Agents v1.5+.
+**Important distinction**: `stt_node` processes the *user's speech* (audio -> SpeechEvent), while `transcription_node` post-processes the *agent's LLM output* for display. If you want to clean up what the user said before it reaches the LLM, override `stt_node`, not `transcription_node`.
 
+The key pattern is **async generators**: each node receives an async iterable and must return/yield the processed stream.
 
 ## Your Tasks
 
-Open `src/agent.py` and complete the three TODOs.
+Open `src/agent.py` and implement the three TODO methods inside `TechSupportAgent`:
 
-Run the agent after each change and notice the difference in conversation flow.
+1. **TODO 1: `stt_node`** -- Strip filler words ("um", "uh", "like") from the user's speech before it reaches the LLM. Override `stt_node`, call `Agent.default.stt_node()`, and modify the `text` field on `SpeechEvent.alternatives` using `FILLER_PATTERN`.
+2. **TODO 2: `tts_node`** -- Expand abbreviations ("API" -> "A P I") before TTS speaks them.
+3. **TODO 3: `llm_node`** -- Enforce a hard character limit on LLM responses. Stream `ChatChunk` objects from `Agent.default.llm_node()`, track character count via `chunk.delta.content`, and stop the stream when `MAX_RESPONSE_CHARS` is reached.
+
+Refer to the docs linked in each TODO comment for implementation guidance.
 
 ## Docs
 
-- [Turn detection & interruptions overview](https://docs.livekit.io/agents/logic/turns/)
-- [Turn detector](https://docs.livekit.io/agents/logic/turns/turn-detector/)
-- [Turn-taking tuning (preemptive generation, endpointing)](https://docs.livekit.io/agents/logic/turns/tuning/)
-- [Turn handling options reference](https://docs.livekit.io/reference/agents/turn-handling-options/)
+- [Pipeline nodes & hooks](https://docs.livekit.io/agents/build/nodes/)
 
 ## Break It
 
-- Set `interruption={"enabled": True}` and try talking over the agent while it's speaking. What happens?
-- Disable preemptive generation (`preemptive_generation={"enabled": False}`) and time how long it takes the agent to start responding after you finish speaking. Now enable it and compare.
+- Remove the `tts_node` override and ask the agent "What is an API?" -- listen to how the TTS pronounces "API" without expansion.
+- Add a mapping in `TTS_EXPANSIONS` that maps "Acme" to "ACME CORPORATION" and notice the difference.
+- Set `MAX_RESPONSE_CHARS = 20` and watch the agent get cut off mid-sentence.
 
 ## Extend It
 
-- Look up `TurnHandlingOptions` in the LiveKit docs and try configuring `endpointing` with custom `min_delay` and `max_delay` values. What do these do?
-- Try the `"mode": "adaptive"` interruption mode. How does it differ from simple enabled/disabled?
+- Add a word count limit to `llm_node` instead of a character limit -- break on word boundaries so the response doesn't cut off mid-word.

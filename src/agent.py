@@ -1,4 +1,6 @@
 import logging
+import re
+from typing import AsyncIterable
 
 from dotenv import load_dotenv, find_dotenv
 from livekit.agents import (
@@ -6,15 +8,31 @@ from livekit.agents import (
     AgentServer,
     AgentSession,
     JobContext,
+    ModelSettings,
     TurnHandlingOptions,
     cli,
     inference,
+    stt,
 )
+from livekit.agents import llm
 
 load_dotenv(find_dotenv(".env.local"))
 
 logger = logging.getLogger("voice-agent")
 logger.setLevel(logging.INFO)
+
+FILLER_PATTERN = re.compile(r"\b(?:um|uh|like|you know|basically|actually)\b", re.IGNORECASE)
+
+TTS_EXPANSIONS = {
+    "API": "A P I",
+    "URL": "U R L",
+    "SQL": "sequel",
+    "CLI": "command line",
+    "GUI": "gooey",
+    "OS": "operating system",
+}
+
+MAX_RESPONSE_CHARS = 200
 
 
 class TechSupportAgent(Agent):
@@ -44,6 +62,27 @@ class TechSupportAgent(Agent):
             instructions="Greet the user warmly, introduce yourself as Acme Corp tech support, and ask how you can help today."
         )
 
+    # TODO 1: Override stt_node to strip filler words from the user's speech.
+    #   The FILLER_PATTERN regex above matches common fillers like "um", "uh", "like".
+    #   Override stt_node to intercept SpeechEvent objects from
+    #   Agent.default.stt_node() and remove filler words from the transcript
+    #   text in each alternative.
+    #
+    #   Docs: https://docs.livekit.io/agents/build/nodes/#stt-node
+
+    # TODO 2: Override tts_node to expand abbreviations for correct TTS pronunciation.
+    #   The TTS_EXPANSIONS dict maps abbreviations to how they should be spoken.
+    #   For example, "API" should become "A P I" so the TTS doesn't say "appy".
+    #
+    #   Docs: https://docs.livekit.io/agents/build/nodes/#tts_node
+
+    # TODO 3: Override llm_node to enforce a hard character limit on responses.
+    #   Use MAX_RESPONSE_CHARS to cap the total characters the LLM can output.
+    #   Stream ChatChunk objects from Agent.default.llm_node() and track the
+    #   character count. Trim the final chunk if it exceeds the limit.
+    #
+    #   Docs: https://docs.livekit.io/agents/build/nodes/#llm-node
+
 
 server = AgentServer()
 
@@ -57,23 +96,11 @@ async def entrypoint(ctx: JobContext):
             model="cartesia/sonic-3",
             voice="9626c31c-bec5-4cca-baa8-f8ba9e84c8bc",
         ),
-
-        # TODO 1: Disable interruptions so the user cannot cut off the agent mid-sentence.
-        #   By default, interruptions are enabled.
-        #
-        #   Docs: https://docs.livekit.io/reference/agents/turn-handling-options/#interruptionoptions
-
-        # TODO 2: Add a turn detector using inference.TurnDetector().
-        #   Without a turn detector, the agent relies only on VAD silence duration to decide
-        #   when you're done talking.
-        #
-        #   Docs: https://docs.livekit.io/agents/logic/turns/turn-detector/
-
-        # TODO 3: Enable preemptive generation.
-        #   When enabled, the LLM starts generating a response while the turn detector
-        #   is still deciding if you're done speaking. If you keep talking, the partial
-        #   response is discarded. This reduces perceived latency.
-        #   Docs: https://docs.livekit.io/agents/logic/turns/tuning/
+        turn_handling=TurnHandlingOptions(
+            turn_detection=inference.TurnDetector(),
+            interruption={"enabled": False},
+            preemptive_generation={"enabled": True},
+        ),
     )
 
     await session.start(agent=TechSupportAgent(), room=ctx.room)
