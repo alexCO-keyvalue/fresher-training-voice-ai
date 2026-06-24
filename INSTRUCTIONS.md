@@ -1,59 +1,65 @@
-# Stage 7: Multi-Agent Handoffs
+# Stage 8: LangGraph Integration
 
 ## Goal
 
-Build a multi-agent system where specialist agents hand off to each other using `session.update_agent()`, passing context between them.
+Replace the built-in LLM with an existing LangGraph workflow as the brain of a voice agent. This is a separate agent from the customer support system you built in stages 1-7.
 
 ## Background
 
-A single agent can't do everything well. In production, you split responsibilities across specialist agents:
+In production, your voice agent's "brain" might not be a single LLM call. It might be a complex workflow with classification, tool use, RAG, and routing -- all orchestrated by LangGraph. LiveKit provides an adapter that lets you plug any LangGraph StateGraph in as a drop-in LLM replacement.
+
+The architecture:
 
 ```
-User calls in
-      |
-  [TriageAgent]  -- "What do you need help with?"
-      |
-   /     \
-  v       v
-[TechnicalAgent]   [BillingAgent]
-  |                   |
-  v                   v
-"Let me help with     "Let me look up
- that bug..."          your invoice..."
+User speaks
+    |
+  [STT]  (Deepgram)
+    |
+  [LangGraph StateGraph]   <-- replaces the direct LLM call
+    |   classify -> handle_ticket / handle_knowledge / handle_escalation -> respond
+    |
+  [TTS]  (Cartesia)
+    |
+User hears response
 ```
 
-Each agent has its own instructions, tools, and personality. When the user's needs change, agents hand off using `session.update_agent()`. The key question is: **what happens to conversation history during a handoff?**
+## What's Provided
 
-## What's Already Built
+- `src/graph.py` -- A complete LangGraph workflow (DO NOT MODIFY). It has:
+  - A "classify" node that categorizes the user's intent
+  - Three handler nodes: ticket lookup, knowledge base search, escalation
+  - A "respond" node that generates the final user-facing response
+  - Only the "respond" node produces output the user should hear
 
-Open `src/agent.py` and study the code:
+- `src/langgraph_agent.py` -- A skeleton voice agent with TODOs. This is the file you edit.
 
-- **`TriageAgent`** -- fully implemented. Routes users to technical or billing support. Has `transfer_to_technical` and `transfer_to_billing` tools.
-- **`TechnicalAgent`** -- fully implemented. Has `lookup_ticket`, `create_ticket`, and `transfer_to_triage` tools.
-- **`BillingAgent`** -- just a stub (`pass`). This is what you need to build.
+- `src/agent.py` -- Your customer support multi-agent system from stages 1-7. Left untouched.
 
-The entrypoint already starts with `TriageAgent`. When the user says they have a billing question, the triage agent will try to transfer to `BillingAgent` -- but it won't work until you implement it.
+## Your Tasks
 
-## Your Task
+Open `src/langgraph_agent.py` and complete the four TODOs:
 
-Build `BillingAgent` from scratch by studying `TriageAgent` and `TechnicalAgent` as examples:
+1. **TODO 1:** Import `compiled_graph` from `graph.py` and `langchain` from `livekit.plugins`
+2. **TODO 2:** Create the adapter: `langchain.LLMAdapter(graph=compiled_graph)`
+3. **TODO 3:** Replace `inference.LLM(...)` with the adapter in the AgentSession
+4. **TODO 4:** Debug the intermediate output problem -- you'll hear the agent speak internal processing messages. Fix it by adding node filtering.
 
-1. Accept `user_context` in `__init__` and use it in the instructions
-2. Implement `on_enter()` to greet the user as the billing specialist
-3. Implement a `lookup_invoice` tool using `INVOICE_DATABASE`
-4. Implement a `transfer_to_triage` tool to hand back without losing context
-
-Pay attention to how context flows: `self.user_context` is passed between agents so each one can personalize its instructions.
+Run with:
+```bash
+uv run src/langgraph_agent.py dev
+```
 
 ## Docs
 
-- [Agents & handoffs](https://docs.livekit.io/agents/logic/turns/agents-and-handoffs/)
+- [LangGraph + LiveKit example](https://github.com/livekit-examples/python-agents-examples/tree/main/docs/examples/langchain_langgraph)
+- [livekit-plugins-langchain on PyPI](https://pypi.org/project/livekit-plugins-langchain/)
 
 ## Break It
 
-- Remove the `transfer_to_triage` tool from your `BillingAgent`. Ask the billing agent a technical question. What does it do?
-- Remove the routing instructions from `TriageAgent` but keep the transfer tools. Does it still route correctly? (Tools have docstrings -- does the LLM figure it out?)
+- Remove the `node` filter from the adapter (after you've added it). Talk to the agent and listen -- you'll hear it speak its internal classification and context-gathering outputs. Why is node filtering important?
+- Open `src/graph.py` and read the `classify` node. What happens if you ask the agent something completely off-topic?
 
 ## Extend It
 
-- After the billing issue is resolved, make `BillingAgent` transfer to `TechnicalAgent` directly (skipping triage) if the user mentions a technical problem. How do you preserve context across a three-agent chain?
+- Add a new node to `graph.py` that does sentiment analysis on the user's message before routing. If the user seems frustrated, have the "respond" node use an especially empathetic tone.
+- Try using the adapter with a RemoteGraph instead of a local compiled graph. What would you need to change?
