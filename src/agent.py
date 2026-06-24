@@ -18,10 +18,18 @@ logger = logging.getLogger("voice-agent")
 logger.setLevel(logging.INFO)
 
 
-class VoiceAgent(Agent):
+class TechSupportAgent(Agent):
     def __init__(self) -> None:
         super().__init__(
-            instructions="You are a helpful voice assistant. Answer the user's questions clearly and concisely.",
+            # TODO 1: Replace this generic instruction with an Acme Corp tech support
+            #   persona prompt. Write it yourself or use ChatGPT to help draft it.
+            #   Think about what all a technical support agent would need to think about when
+            #   troubleshooting a problem.
+            #
+            #   There is no single right answer -- make it your own.
+            #
+            #   Docs: https://docs.livekit.io/agents/start/prompting/
+            instructions="You are a helpful voice assistant.",
         )
 
 
@@ -47,7 +55,7 @@ async def entrypoint(ctx: JobContext):
         vad=ctx.proc.userdata["vad"],
     )
 
-    await session.start(agent=VoiceAgent(), room=ctx.room)
+    await session.start(agent=TechSupportAgent(), room=ctx.room)
     await ctx.connect()
 
 

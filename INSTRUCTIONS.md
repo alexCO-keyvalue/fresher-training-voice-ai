@@ -1,73 +1,32 @@
-# Stage 1: Setup and First Run
+# Stage 2: Prompt Engineering
 
 ## Goal
 
-Get your development environment running and have your first voice conversation with an AI agent. No code changes needed -- just configuration.
+Learn how voice-specific prompts differ from chat prompts. Craft a persona prompt that sounds natural when spoken aloud.
 
-## The Voice Pipeline
+## Background
 
-When you talk to the agent, your voice flows through three AI models in sequence:
+The `instructions` string you pass to an Agent becomes the system prompt for the LLM. But unlike a chatbot, the LLM's output will be **spoken aloud** by the TTS engine. 
 
-```
-You speak
-   |
-   v
-[STT] Speech-to-Text (Deepgram Nova-3)
-   |  Converts your audio into text
-   v
-[LLM] Large Language Model (OpenAI GPT-4.1-mini)
-   |  Reads the text and generates a response
-   v
-[TTS] Text-to-Speech (Cartesia Sonic-3)
-   |  Converts the response text back into audio
-   v
-You hear the agent respond
-```
+Voice prompts need to guide the LLM to produce **conversational output** that sounds natural when spoken.
 
-The `AgentSession` in `src/agent.py` wires these three together. Silero VAD (Voice Activity Detection) listens for when you start and stop speaking.
+## Your Task
 
-## Steps
+Open `src/agent.py` and find the TODO comment inside `TechSupportAgent.__init__`. Replace the generic one-liner with a proper Acme Corp tech support persona prompt.
 
-1. **Get LiveKit Cloud credentials**
-   - Go to https://cloud.livekit.io and create a free account
-   - Create a new project
-   - Go to Settings > Keys and create an API key pair
-   - You need three values: `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`
+Use ChatGPT to help draft it, or write it freehand. There is no single correct answer.
 
-2. **Configure your environment**
-   ```bash
-   cp .env.example .env.local
-   ```
-   Edit `.env.local` and fill in your credentials.
+## Docs
 
-3. **Install dependencies**
-   ```bash
-   uv sync
-   ```
-
-4. **Download model files** (Silero VAD)
-   ```bash
-   uv run src/agent.py download-files
-   ```
-
-5. **Run the agent**
-   ```bash
-   uv run src/agent.py dev
-   ```
-
-6. **Connect to the Agent Playground**
-   - Go to your LiveKit Cloud dashboard
-   - Click "Agent Playground" (or go to https://cloud.livekit.io/projects/YOUR_PROJECT/playground)
-   - You should see your agent connect
-   - Start talking!
+- [Prompting guide](https://docs.livekit.io/agents/start/prompting/)
 
 ## Break It
 
-- Change the LLM model to `openai/fake-model` in `src/agent.py`. What error do you get?
-- Now change the STT model to something invalid. What's different about the error?
-- What happens if you remove the `vad=` line entirely?
+- Write instructions that use markdown formatting (bullet points, bold text, headers). Talk to the agent. What does the TTS sound like when it tries to speak "asterisk asterisk important asterisk asterisk"?
+- Write a very long, verbose prompt (500+ words). Does the agent become slower to respond? Why?
 
-## Extend It
+## Extend It (Extra Exercise)
 
-- Try changing the TTS voice UUID in `src/agent.py`. Where can you find other Cartesia voice IDs? (Hint: https://play.cartesia.ai)
-- Change the LLM model to `openai/gpt-4.1` (the full model, not mini). Do you notice any difference in response quality or latency?
+Right now, the agent waits silently until you speak first. Figure out how to make the agent **start the conversation** -- greet the user proactively in a lively tone without waiting for them to speak.
+
+Hint: look at the Agent lifecycle hooks in the docs: [Pipeline nodes & hooks](https://docs.livekit.io/agents/logic/nodes/). You're looking for a method that runs when the agent first enters the session.
