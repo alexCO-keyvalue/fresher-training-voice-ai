@@ -43,6 +43,18 @@ TICKET_DATABASE = {
 }
 
 
+def extract_ticket_ids(text: str) -> list[str]:
+    """Extract ticket IDs like T-1001 from a text string."""
+    return re.findall(r"T-\d{4}", text, re.IGNORECASE)
+
+
+# TODO 1: Implement fetch_user_context() that returns a dict with user profile data.
+#   Simulate fetching user data from an API or database. Then update
+#   TechSupportAgent.__init__ to accept user_context and inject it into instructions.
+#
+#   Docs: https://docs.livekit.io/reference/recipes/context_variables/
+
+
 class TechSupportAgent(Agent):
     def __init__(self) -> None:
         super().__init__(
@@ -120,18 +132,44 @@ class TechSupportAgent(Agent):
 
         return hard_limit()
 
-    # TODO 1: Implement the lookup_ticket tool.
-    #   Create a @function_tool method that looks up a ticket by its ID
-    #   from the TICKET_DATABASE dict above.
-    #
-    #   Docs: https://docs.livekit.io/agents/logic/tools/definition/
+    @function_tool
+    async def lookup_ticket(self, context: RunContext, ticket_id: str):
+        """Look up the status of a support ticket by its ID (e.g. T-1001).
 
-    # TODO 2 (Build from scratch): Create a create_ticket tool.
-    #   Design and implement a tool that creates a new ticket in TICKET_DATABASE.
-    #   No skeleton is provided -- figure out the decorator, method signature,
-    #   docstring, and return value yourself.
+        Args:
+            ticket_id: The ticket ID to look up, such as T-1001.
+        """
+        logger.info(f"Tool: lookup_ticket({ticket_id})")
+        ticket = TICKET_DATABASE.get(ticket_id.upper())
+        if not ticket:
+            return f"No ticket found with ID {ticket_id}."
+        return (
+            f"Ticket {ticket_id}: subject is '{ticket['subject']}', "
+            f"status is {ticket['status']}, priority is {ticket['priority']}."
+        )
+
+    @function_tool
+    async def create_ticket(self, context: RunContext, subject: str):
+        """Create a new support ticket for the user's issue.
+
+        Args:
+            subject: A brief description of the issue to create a ticket for.
+        """
+        ticket_num = 1001 + len(TICKET_DATABASE)
+        ticket_id = f"T-{ticket_num}"
+        TICKET_DATABASE[ticket_id] = {
+            "status": "open",
+            "subject": subject,
+            "priority": "medium",
+        }
+        logger.info(f"Tool: create_ticket({ticket_id}, '{subject}')")
+        return f"Ticket {ticket_id} created with subject '{subject}'. Status is open, priority is medium."
+
+    # TODO 2: Override on_user_turn_completed to auto-inject ticket context.
+    #   When the user mentions a ticket ID in their message, automatically look
+    #   it up and inject the data into the chat context before the LLM responds.
     #
-    #   Docs: https://docs.livekit.io/agents/logic/tools/definition/
+    #   Docs: https://docs.livekit.io/agents/logic/chat-context/
 
 
 server = AgentServer()
@@ -152,6 +190,17 @@ async def entrypoint(ctx: JobContext):
             preemptive_generation={"enabled": True},
         ),
     )
+
+    # TODO 3: Register session event handlers.
+    #   Use @session.on("event_name") to register handlers for:
+    #   "user_input_transcribed", "agent_state_changed", and "error".
+    #
+    #   Docs: https://docs.livekit.io/reference/agents/events-and-error-handling/
+
+    # TODO 4: Add a shutdown callback to log a session summary.
+    #   Use ctx.add_shutdown_callback() to register a cleanup function.
+    #
+    #   Docs: https://docs.livekit.io/agents/server/lifecycle/
 
     await session.start(agent=TechSupportAgent(), room=ctx.room)
     await ctx.connect()

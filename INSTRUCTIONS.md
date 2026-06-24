@@ -1,37 +1,44 @@
-# Stage 5: Function Tools
+# Stage 6: Context, Events, and Session Lifecycle
 
 ## Goal
 
-Give the agent the ability to take actions -- not just talk. Tools let the LLM call Python functions to look up data, create records, or trigger side effects.
+Learn how to inject runtime data into the agent, react to session events, and use the ChatContext hook to enrich conversations with external data.
 
 ## Background
 
-Without tools, the agent can only respond based on what's in its instructions and the conversation history. With `@function_tool`, you can give the LLM access to Python functions. The LLM decides when to call them based on the tool's **docstring** -- this is how it learns what the tool does and when to use it.
+So far, the agent's knowledge is limited to its static instructions and tool calls. In production, you often need to:
 
-The flow when a tool is called:
-1. User says something like "Can you check ticket T-1001?"
-2. The LLM reads the tool's docstring and decides to call `lookup_ticket(ticket_id="T-1001")`
-3. Your Python function runs and returns a result string
-4. The LLM incorporates the result into its response
-5. The response is spoken to the user via TTS
+- **Inject user context** -- greet the user by name, know their account type, personalize the experience
+- **React to events** -- log transcripts, track state changes, handle errors gracefully
+- **Enrich the chat context** -- automatically provide relevant data to the LLM based on what the user says
+
+LiveKit provides hooks for all of these:
+- `fetch_user_context()` + f-string instructions for personalization
+- `on_user_turn_completed()` for injecting data into the ChatContext before the LLM responds
+- `session.on("event_name")` for reacting to session events
+- `ctx.add_shutdown_callback()` for cleanup when the session ends
 
 ## Your Tasks
 
-Open `src/agent.py` and implement the two tools:
+Open `src/agent.py` and complete the four TODOs:
 
-1. **TODO 1:** Implement `lookup_ticket` -- look up a ticket by ID from `TICKET_DATABASE` and return a formatted string. The decorator, signature, and hints are provided.
-2. **TODO 2:** Build `create_ticket` from scratch -- no skeleton provided. You need to figure out the decorator, method signature, docstring, and return value yourself.
+1. **TODO 1:** Implement `fetch_user_context()` and inject the data into agent instructions via f-strings
+2. **TODO 2:** Override `on_user_turn_completed` to auto-inject ticket data when the user mentions a ticket ID
+3. **TODO 3:** Register session event handlers for `user_input_transcribed`, `agent_state_changed`, and `error`
+4. **TODO 4:** Add a shutdown callback to log a session summary
 
 ## Docs
 
-- [Function tools](https://docs.livekit.io/agents/logic/tools/definition/)
+- [Context variables recipe](https://docs.livekit.io/reference/recipes/context_variables/)
+- [Chat context](https://docs.livekit.io/agents/logic/chat-context/)
+- [Events and error handling](https://docs.livekit.io/reference/agents/events-and-error-handling/)
+- [Job lifecycle](https://docs.livekit.io/agents/server/lifecycle/)
 
 ## Break It
 
-- Make `lookup_ticket` return a Python dict instead of a string. What does the agent say?
-- Now make it return `None`. What happens?
-- Remove the docstring from `lookup_ticket` entirely. Ask the agent to look up a ticket. Does it still work?
+- Hardcode a wrong name in the instructions (e.g. "The user's name is Bob"). Talk to the agent -- does it call you Bob?
+- Remove `on_user_turn_completed` and mention ticket T-1001 in conversation. Does the agent know about the ticket without using the lookup tool?
 
 ## Extend It
 
-- Add an `update_ticket_status` tool that can change a ticket's status. Give it validation -- it should only accept "open", "in_progress", and "resolved" as valid statuses, and return an error message for anything else.
+- Use `ctx.wait_for_participant()` to get the real participant identity and attributes from the LiveKit room instead of the fake `fetch_user_context()`. Pass `participant.attributes.get('language', 'en')` to configure the STT language dynamically.
