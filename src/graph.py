@@ -116,6 +116,7 @@ def classify(state: GraphState) -> dict:
             "(e.g. mentions a ticket number like T-1001, t 1001, ticket 1001)\n"
             "- 'knowledge' if they have a general how-to or product question\n"
             "- 'escalate' if they are frustrated, angry, or the issue seems complex\n"
+            "- 'greet' if they are saying hello or hi or anything related to greeting\n"
             "Respond with only the single word, nothing else."
         )),
         *state["messages"],
