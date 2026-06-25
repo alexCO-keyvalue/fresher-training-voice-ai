@@ -1,4 +1,4 @@
-"""LangGraph tech support workflow for LiveKit voice agent.
+"""LangGraph tech support workflow for LiveKit voice agent. Mock Script Please dont use this type of code in production.
 
 Graph flow:
   START -> classify -> (handle_ticket | handle_knowledge | handle_escalation) -> respond -> END
@@ -39,6 +39,7 @@ KNOWLEDGE_BASE = {
     "invoice": "For billing questions, contact billing@acmecorp.com or call 1-800-ACME-PAY.",
     "setup": "To set up Acme Dashboard Pro, download the installer from your account page, run it, and enter your license key from the welcome email.",
     "install": "To set up Acme Dashboard Pro, download the installer from your account page, run it, and enter your license key from the welcome email.",
+    "greet": "Hello, how can I help you today? ",
 }
 
 TICKET_DATABASE = {
@@ -120,17 +121,18 @@ def classify(state: GraphState) -> dict:
         *state["messages"],
     ])
     classification = str(result.content).strip().lower()
-    if classification not in ("ticket", "knowledge", "escalate"):
+    if classification not in ("ticket", "knowledge", "escalate", "greet"):
         classification = "knowledge"
     logger.info(f"Classified as: {classification}")
     return {"classification": classification}
 
 
-def route_by_classification(state: GraphState) -> Literal["handle_ticket", "handle_knowledge", "handle_escalation"]:
-    mapping: dict[str, Literal["handle_ticket", "handle_knowledge", "handle_escalation"]] = {
+def route_by_classification(state: GraphState) -> Literal["handle_ticket", "handle_knowledge", "handle_escalation", "respond"]:
+    mapping: dict[str, Literal["handle_ticket", "handle_knowledge", "handle_escalation", "respond"]] = {
         "ticket": "handle_ticket",
         "knowledge": "handle_knowledge",
         "escalate": "handle_escalation",
+        "greet": "respond",
     }
     return mapping.get(state["classification"], "handle_knowledge")
 

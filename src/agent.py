@@ -174,19 +174,62 @@ class TechnicalAgent(Agent):
         self.session.update_agent(TriageAgent(self.user_context))
 
 
-# ---------------------------------------------------------------------------
-# Billing Agent -- handles invoices, payments, subscriptions
-# ---------------------------------------------------------------------------
-#
-# TODO 1: Build BillingAgent from scratch.
-#   Study TriageAgent and TechnicalAgent above as examples of the pattern.
-#   Your BillingAgent should handle invoice lookups and be able to transfer
-#   back to triage. Use INVOICE_DATABASE for data.
-#
-#   Docs: https://docs.livekit.io/agents/logic/turns/agents-and-handoffs/
-
 class BillingAgent(Agent):
-    pass  # Replace this with your implementation
+    """Handles billing, invoice, payment, and subscription queries."""
+
+    def __init__(self, user_context: dict) -> None:
+        self.user_context = user_context
+        super().__init__(
+            instructions=(
+                "You are the billing support specialist at Acme Corp. "
+                "You help users with invoices, payments, subscription changes, and billing questions.\n\n"
+                f"The user's name is {user_context['name']} ({user_context['account_type']} account), "
+                f"using {user_context['product']}.\n\n"
+                "# Conversational flow\n"
+                "- Understand the billing question first.\n"
+                "- Use lookup_invoice when the user asks about a specific invoice.\n"
+                "- Provide clear, concise answers about charges, due dates, and payment status.\n\n"
+                "# Tools\n"
+                "- Use lookup_invoice to check invoice details when the user mentions an invoice.\n"
+                "- Use transfer_to_triage to send the user back if they need technical help.\n\n"
+                "# Output rules\n"
+                "- Respond in plain text only. No markdown, lists, or emojis.\n"
+                "- Keep replies brief: one to three sentences.\n"
+                "- Spell out abbreviations.\n"
+            ),
+        )
+
+    async def on_enter(self):
+        self.session.generate_reply(
+            instructions=(
+                f"Introduce yourself to {self.user_context['name']} as the Acme Corp billing specialist. "
+                "Let them know you can help with invoices, payments, and subscription questions, "
+                "and ask how you can assist."
+            )
+        )
+
+    @function_tool
+    async def lookup_invoice(self, context: RunContext, invoice_id: str):
+        """Look up the details of an invoice by its ID (e.g. INV-2001).
+
+        Args:
+            invoice_id: The invoice ID to look up, such as INV-2001.
+        """
+        logger.info(f"Tool: lookup_invoice({invoice_id})")
+        invoice = INVOICE_DATABASE.get(invoice_id.upper())
+        if not invoice:
+            return f"No invoice found with ID {invoice_id}."
+        return (
+            f"Invoice {invoice_id}: amount is {invoice['amount']}, "
+            f"date is {invoice['date']}, status is {invoice['status']}."
+        )
+
+    @function_tool
+    async def transfer_to_triage(self, context: RunContext):
+        """Transfer the user back to triage. Use when the user needs help
+        with a non-billing issue like a technical problem."""
+        logger.info("Transferring back to TriageAgent")
+        self.session.update_agent(TriageAgent(self.user_context))
 
 
 # ---------------------------------------------------------------------------

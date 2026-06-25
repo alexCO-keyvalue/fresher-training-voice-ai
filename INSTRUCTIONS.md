@@ -56,7 +56,7 @@ uv run src/langgraph_agent.py dev
 
 ## Break It
 
-- Remove the `node` filter from the adapter (after you've added it). Talk to the agent and listen -- you'll hear it speak its internal classification and context-gathering outputs. Why is node filtering important?
+- Remove the `stream_responses` parameter from the adapter (after you've added it). Talk to the agent and listen -- you'll hear it speak its internal classification and context-gathering outputs. Why is node filtering important?
 - Open `src/graph.py` and read the `classify` node. What happens if you ask the agent something completely off-topic?
 
 ## Extend It

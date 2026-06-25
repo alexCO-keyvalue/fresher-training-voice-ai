@@ -31,12 +31,13 @@ logger.setLevel(logging.INFO)
 
 class LangGraphVoiceAgent(Agent):
     def __init__(self) -> None:
-        # TODO: Call super().__init__() with instructions for a tech support agent.
-        pass
-
-    async def on_enter(self):
-        # TODO: Greet the user.
-        pass
+        super().__init__(
+            instructions=(
+                "You are a helpful tech support agent for Acme Corp. "
+                "You help users with their Acme Dashboard Pro software. "
+                "You are also a helpful assistant that can answer questions and help with tasks. "
+            )
+        )
 
 
 server = AgentServer()
@@ -44,17 +45,22 @@ server = AgentServer()
 
 @server.rtc_session(agent_name="langgraph-agent")
 async def entrypoint(ctx: JobContext):
-    # TODO: Create a langchain.LLMAdapter wrapping compiled_graph.
-    #   Docs: https://docs.livekit.io/agents/integrations/langgraph/
-    langgraph_llm = None
+    
+    session = AgentSession(
+        stt=inference.STT(model="deepgram/nova-3", language="en"),
+        llm=langchain.LLMAdapter(graph=compiled_graph, stream_mode="custom"),
+        tts=inference.TTS(
+            model="cartesia/sonic-3", voice="9626c31c-bec5-4cca-baa8-f8ba9e84c8bc"
+        ),
+        turn_handling=TurnHandlingOptions(
+            turn_detection=inference.TurnDetector(),
+            interruption={"enabled": False},
+            preemptive_generation={"enabled": True},
+        ),
+    )
 
-    # TODO: Create an AgentSession with STT, LLM (the adapter above), TTS,
-    #   and turn_handling configured similarly to previous stages.
-    session = None
-
-    # TODO: Start the session and connect to the room.
-    pass
-
+    await session.start(agent=LangGraphVoiceAgent(), room=ctx.room)
+    await ctx.connect()
 
 if __name__ == "__main__":
     cli.run_app(server)
